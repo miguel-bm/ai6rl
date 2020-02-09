@@ -1,2 +1,2 @@
-# ai6rl
-Code from the AI Saturdays (3rd ed.) Reinforcement Learning Track.
+# AI Saturdays: Reinforcement Learning Track
+Code and notes from the AI Saturdays (3rd ed.) Reinforcement Learning Track.
