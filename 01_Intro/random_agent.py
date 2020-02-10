@@ -16,7 +16,7 @@ class RandomAgent(object):
         return self.action_space.sample()
 
 
-def play_gym(
+def play_gym_random(
         game: str = typer.Argument("CartPole-v1"),
         episodes: int = typer.Option(
             1,
@@ -95,4 +95,4 @@ def play_gym(
     env.close()
 
 if __name__ == "__main__":
-    typer.run(play_gym)
+    typer.run(play_gym_random)

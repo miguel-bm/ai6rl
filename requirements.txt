@@ -1,4 +1,4 @@
-pandas==0.25.1
 numpy==1.17.2
+pandas==0.25.1
 gym==0.15.6
 typer==0.0.8
