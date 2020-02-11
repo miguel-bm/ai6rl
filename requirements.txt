@@ -1,5 +1,7 @@
-pygame==1.9.6
-pandas==0.25.1
 numpy==1.17.2
+torch==1.4.0
+pandas==0.25.1
+pygame==1.9.6
 gym==0.15.6
+scikit_learn==0.22.1
 typer==0.0.8
