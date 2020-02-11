@@ -18,4 +18,6 @@ During the session we had a look at some basic Reinforcement Learning concepts:
  * Model Free and Model Based Reinforcement Learning
  * Imitation Learning
 
-Afterward, we started to code a couple of small examples in [Gym](https://gym.openai.com/).
+Afterward, we started to code a couple of small examples in [Gym](https://gym.openai.com/). This included:
+ * A script that executes a series of episodes of a game with a random agent, which samples actions uniformly from the action space of the environment.
+ * A script that allows the user to play the game and record the gameplay (observations, actions and rewards).
