@@ -32,10 +32,6 @@ def train_imitator(
             512,
             help=("Size of dense hidden layers."),
             ),
-        dense_num: int = typer.Option(
-            2,
-            help=("Number of dense hidden layers."),
-            ),
         outdir: Path = typer.Option(
             Path.cwd()/"models",
             help=("Output directory for the trained model"+
@@ -52,7 +48,7 @@ def train_imitator(
     actions = gameplay_df["action"]
 
     # Transform actions into a space in 0..N-1
-    action_space = list(actions.value_counts().index)
+    action_space = sorted(list(actions.value_counts().index))
     action_space_len = len(action_space)
     action_encoding = {x: i for i, x in enumerate(action_space)}
     action_decoding = {i: x for i, x in enumerate(action_space)}
@@ -76,8 +72,7 @@ def train_imitator(
     momentum      = 0.1
 
     loss_func = F.cross_entropy
-    model = DenseNN(X.shape[1], action_space_len,
-                    dense_size, dense_num)
+    model = DenseNN(X.shape[1], action_space_len, dense_size)
     model = model.to(device)
     optimizer = torch.optim.SGD(model.parameters(),
                                 lr=learning_rate,
