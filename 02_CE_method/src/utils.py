@@ -118,7 +118,7 @@ def fit(epochs, model, loss_func, opt, train_dl, val_dl, verbose=True):
     At each epoch, it evaluates the model over a set of validation data and
     records the performance.
 
-    Args:
+    Attributes:
         epochs (int): number of times the model will be exposed to all of the
             training data.
         model: normally a torch model, model(X) -> y, with .train() and .eval()

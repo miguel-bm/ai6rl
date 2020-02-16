@@ -21,3 +21,17 @@ During the session we had a look at some basic Reinforcement Learning concepts:
 Afterward, we started to code a couple of small examples in [Gym](https://gym.openai.com/). This included:
  * A script that executes a series of episodes of a game with a random agent, which samples actions uniformly from the action space of the environment.
  * A script that allows the user to play the game and record the gameplay (observations, actions and rewards).
+
+
+## Session 2 - 2020-02-15
+For the second session we decided to review the following pages from OpenAI Spinning Up:
+ * [Part 1: Key Concepts in RL](https://spinningup.openai.com/en/latest/spinningup/rl_intro.html)
+ * [Part 2: Kinds of RL Algorithms](https://spinningup.openai.com/en/latest/spinningup/rl_intro2.html)
+
+We also decided to watch the following lecture from David Silver:
+ * [Video](https://www.youtube.com/watch?v=lfHX2hHRMVQ)
+ * [Slides](http://www0.cs.ucl.ac.uk/staff/d.silver/web/Teaching_files/MDP.pdf)
+
+Finally, we read the 4th chapter from Deep Reinforcement Learning Hands On, by Maxim Lapan, (Chapter4: The Cross-Entropy Method).
+
+Sadly, I could not attend the session personally, but it consisted on reviewing the Cross-Entropy method, analyzing in which environments it would be most applicable, and implementing them for a few environments.

@@ -69,7 +69,7 @@ def play_gym_model(
         outdir: Path = typer.Option(
             Path.cwd()/"model_results",
             help=("Output directory for the results of the monitor"+
-                  "[default: ./random_agent_results]"),
+                  "[default: ./model_results]"),
             ),
         ):
     """Play an OpenAI Gym game using a random agent.
