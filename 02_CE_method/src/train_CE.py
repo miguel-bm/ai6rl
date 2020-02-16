@@ -114,7 +114,7 @@ def unwrap_episodes(episodes: list):
 def train_CE(
     environment: str = typer.Argument("CartPole-v0"),
     elite_ratio: float = typer.Option(
-        0.3,
+        0.25,
         show_default=True,
         help="Ratio of cases with best score that will be used for training.",
         ),
@@ -129,7 +129,7 @@ def train_CE(
         help=("Decrease reward of later steps in an episode.")
         ),
     keep_elite: bool = typer.Option(
-        True,
+        False,
         show_default=True,
         help=("Keep an elite number of episodes across epochs.")
         ),
@@ -158,10 +158,20 @@ def train_CE(
         show_default=True,
         help="Number of perceptrons in hidden layer of the NN model.",
         ),
+    from_model: Path = typer.Option(
+        None,
+        show_default=False,
+        help="Location of a model to load and start from if so desired."
+        ),
     save: bool = typer.Option(
         True,
         show_default=True,
-        help="Save the trained model to disk",
+        help="Save the trained model to disk.",
+        ),
+    save_name: str = typer.Option(
+        None,
+        show_default=False,
+        help="Name for the saved model."
         ),
     outdir: Path = typer.Option(
         Path.cwd()/"models",
@@ -207,10 +217,14 @@ def train_CE(
     if monitor:
         env = gym.wrappers.Monitor(env, directory=monitor_outdir, force=True)
     obs_size = env.observation_space.shape[0]
+    
     actions_size = env.action_space.n
 
     # Create a model (fully connected NN with 1 hidden layer)
-    model = DenseNN(obs_size, [hidden_size], actions_size).to(device)
+    if from_model is not None:
+        model = torch.load(from_model)
+    else:
+        model = DenseNN(obs_size, [hidden_size], actions_size).to(device)
     objective = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(params=model.parameters(), lr=learning_rate)
 
@@ -229,7 +243,8 @@ def train_CE(
 
         # If there are not enough good episodes yet, do not train on this epoch
         if len(elite_episodes) < elite_num:
-            typer.echo("Not enough elite episodes on epoch {epoch}.")
+            typer.echo(f"Not enough elite episodes on epoch {epoch} "+
+                       f"({len(elite_episodes)}/{elite_num}).")
             continue
 
         # Unwrap data from episodes (all steps on the same level and order)
@@ -255,7 +270,10 @@ def train_CE(
     typer.echo(f"Process stoped after {epoch} epochs. Saving model...")
 
     # Save model
-    model_name=f"CE_model_fcNN_{environment}.pt"
+    if save_name is not None:
+        model_name = save_name+".pt"
+    else:
+        model_name=f"CE_model_fcNN_{environment}.pt"
     torch.save(model, outdir/model_name)
     typer.echo(f"Model saved to {outdir/model_name}")
 
