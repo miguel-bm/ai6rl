@@ -12,7 +12,7 @@ from nn_models import DenseNN
 
 
 def generate_batch(env, model, batch_size: int, discount_factor: float = 1.0):
-    """Play a episodes of an environment acording to a model and record results.
+    """Play episodes of an environment acording to a model and record results.
 
     It stores results in named tuples.
 
@@ -34,11 +34,13 @@ def generate_batch(env, model, batch_size: int, discount_factor: float = 1.0):
     Step = namedtuple("Step", field_names=["observation", "action", "reward"])
 
     # This allows to use model with one input at a time and with numpy arrays
-    model_wrapper = lambda obs: torch.nn.Softmax(dim=1)(
-                        model(torch.FloatTensor([obs]))).data.numpy()[0]
+    def model_wrapper(obs):
+        return torch.nn.Softmax(dim=1)(model(torch.FloatTensor([obs]))
+            ).data.numpy()[0]
 
     # Play and record a batch of episodes with the current model
     batch = []
+
     for episode in range(batch_size):
         done = False
         reward = 0.0
@@ -62,22 +64,24 @@ def generate_batch(env, model, batch_size: int, discount_factor: float = 1.0):
                              steps=episode_steps))
     return batch
 
-def discount_reward(steps: list, discount_factor: float=1.0):
+
+def discount_reward(steps: list, discount_factor: float = 1.0):
     episode_discounted_reward = 0.0
     for i, step in enumerate(steps):
         discounted_reward = step.reward * discount_factor ** i
         episode_discounted_reward += discounted_reward
     return episode_discounted_reward
 
+
 def filter_episodes(batch: list, elite_num: int, elite_episodes: list,
-                    keep_elite: bool=False, min_reward: float=0.0):
+                    keep_elite: bool = False, min_reward: float = 0.0):
     """Given a batch of episodes, keep only a few with the best rewards.
 
     If keep elite is selected, the best episodes from the previous iterations
     might be kept along with newer ones if the have a better reward.
 
     A minimum overall reward can also be imposed, which can be useful in order
-    to avoid learning from episodes which are bad, if only less bad than others.
+    to avoid learning from bad episodes, if only less bad than others.
     """
     # Erase elite episodes if they are not to be kept
     if not keep_elite:
@@ -95,6 +99,7 @@ def filter_episodes(batch: list, elite_num: int, elite_episodes: list,
 
     return best_episodes, reward_bound
 
+
 def unwrap_episodes(episodes: list):
     """Given a list of episodes, return the observations and actions.
 
@@ -111,62 +116,63 @@ def unwrap_episodes(episodes: list):
     actions = torch.LongTensor(actions_l)
     return observations, actions
 
+
 def train_CE(
     environment: str = typer.Argument("CartPole-v0"),
     elite_ratio: float = typer.Option(
         0.25,
         show_default=True,
-        help="Ratio of cases with best score that will be used for training.",
+        help = "Ratio of top-scored cases that will be used for training.",
         ),
     reward_objective: float = typer.Option(
         199,
         show_default=True,
-        help=("Mean total accumulated reward to reach."),
+        help = ("Mean total accumulated reward to reach."),
         ),
     discount_factor: float = typer.Option(
         1.0,
         show_default=True,
-        help=("Decrease reward of later steps in an episode.")
+        help = ("Decrease reward of later steps in an episode.")
         ),
     keep_elite: bool = typer.Option(
         False,
         show_default=True,
-        help=("Keep an elite number of episodes across epochs.")
+        help = ("Keep an elite number of episodes across epochs.")
         ),
     min_reward: float = typer.Option(
         0,
         show_default=True,
-        help=("Minimum reward for an episode to be in the elite batch.")
+        help = ("Minimum reward for an episode to be in the elite batch.")
         ),
     batch_size: int = typer.Option(
         20,
         show_default=True,
-        help="Number of episodes to run per batch.",
+        help = "Number of episodes to run per batch.",
         ),
     max_epochs: int = typer.Option(
         100,
         show_default=True,
-        help=("Maximum number of epochs of episodes to play on and train."),
+        help = ("Maximum number of epochs of episodes to play on and train."),
         ),
     learning_rate: float = typer.Option(
         0.01,
         show_default=True,
-        help=("Proportion of step in weights at each training iteration."),
+        help = ("Proportion of step in weights at each training iteration."),
         ),
     hidden_size: int = typer.Option(
         128,
         show_default=True,
-        help="Number of perceptrons in hidden layer of the NN model.",
+        help = "Number of perceptrons in hidden layer of the NN model.",
         ),
     from_model: Path = typer.Option(
         None,
         show_default=False,
-        help="Location of a model to load and start from if so desired."
+        help = "Location of a model to load and start from if so desired."
         ),
     save: bool = typer.Option(
         True,
         show_default=True,
-        help="Save the trained model to disk.",
+        help = "Save the trained model to disk.",
         ),
     save_name: str = typer.Option(
         None,
@@ -176,19 +182,19 @@ def train_CE(
     outdir: Path = typer.Option(
         Path.cwd()/"models",
         show_default=True,
-        help=("Output directory for the saving the model "+
-              "[default: ./models]."),
+        help=("Output directory for the saving the model " +
+                "[default: ./models]."),
         ),
     monitor: bool = typer.Option(
         False,
         show_default=True,
-        help="Record videos of the training process.",
+        help = "Record videos of the training process.",
         ),
     monitor_outdir: Path = typer.Option(
         Path.cwd()/"mon",
         show_default=True,
-        help=("Output directory for the results of the monitor "+
-              "[default: ./mon]."),
+        help = ("Output directory for the results of the monitor " +
+                "[default: ./mon]."),
         ),
     ):
     """Train a Cross-Entropy RL model on a OpenAI Gym environment.
@@ -217,7 +223,7 @@ def train_CE(
     if monitor:
         env = gym.wrappers.Monitor(env, directory=monitor_outdir, force=True)
     obs_size = env.observation_space.shape[0]
-    
+
     actions_size = env.action_space.n
 
     # Create a model (fully connected NN with 1 hidden layer)
@@ -243,7 +249,7 @@ def train_CE(
 
         # If there are not enough good episodes yet, do not train on this epoch
         if len(elite_episodes) < elite_num:
-            typer.echo(f"Not enough elite episodes on epoch {epoch} "+
+            typer.echo(f"Not enough elite episodes on epoch {epoch} " +
                        f"({len(elite_episodes)}/{elite_num}).")
             continue
 
@@ -258,8 +264,8 @@ def train_CE(
         optimizer.step()
 
         # Report on the epoch stats and update the tensorboard monitor
-        typer.echo(f"{epoch:4d} -> Loss: {loss:.3f}  "+
-                   f"Mean Reward: {reward_mean:.3f}  "+
+        typer.echo(f"{epoch:4d} -> Loss: {loss:.3f}  " +
+                   f"Mean Reward: {reward_mean:.3f}  " +
                    f"Reward Bound: {reward_bound:.3f}")
 
         # End the process early if the reward objective was reached
@@ -273,11 +279,12 @@ def train_CE(
     if save_name is not None:
         model_name = save_name+".pt"
     else:
-        model_name=f"CE_model_fcNN_{environment}.pt"
+        model_name = f"CE_model_fcNN_{environment}.pt"
     torch.save(model, outdir/model_name)
     typer.echo(f"Model saved to {outdir/model_name}")
 
     return model
+
 
 if __name__ == "__main__":
     typer.run(train_CE)
