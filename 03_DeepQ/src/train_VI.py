@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import typer
+import pickle
 import gym
 import numpy as np
 import matplotlib.pyplot as plt
@@ -207,8 +208,7 @@ def train_VI(
     agent = ValueIterationAgent(environment,
                                 discount_factor)
 
-    if record_gif:
-        snapshots = list()
+    if record_gif: snapshots = list()
 
     for iter in range(max_iter):
         # Explore environment and populate tables by playing randomly
@@ -235,17 +235,27 @@ def train_VI(
             break
 
     typer.echo(f"Process stoped after {iter} interations.")
-    if save:
-        typer.echo("Saving model to ")
 
+    # Save the model as a pickle file, which will hold the dict with the VF
+    if save:
+        if save_name is None:
+            save_name = f"VI_table_{environment}.pkl"
+        elif save_name[-4] != ".pkl":
+            save_name += ".pkl"
+        typer.echo(f"Saving model to {outdir/save_name}")
+        with open(outdir/save_name, 'wb') as handle:
+            pickle.dump(agent.get_value_table(),
+                        handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    # Record a gif of the learning process of the VF over the state space
     if record_gif:
         if gif_name is None:
             gif_name = f"value_function_{environment}.gif"
         elif gif_name[-4:] != ".gif":
             gif_name += ".gif"
-        gif_location = record_outdir/gif_name
+        typer.echo(f"Saving gif to {record_outdir/gif_name}")
         kwargs_write = {'fps':1.0, 'quantizer':'nq'}
-        imageio.mimsave(gif_location, snapshots, fps=5)
+        imageio.mimsave(record_outdir/gif_name, snapshots, fps=5)
 
     return agent.get_value_table()
 
