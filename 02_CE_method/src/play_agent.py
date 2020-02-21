@@ -59,9 +59,9 @@ def play_gym_model(
             help="Select logger option, from INFO, WARN or DEBUG ",
             ),
         outdir: Path = typer.Option(
-            Path.cwd()/"model_results",
+            Path.cwd()/"reports/videos",
             help=("Output directory for the results of the monitor"+
-                  "[default: ./model_results]"),
+                  "[default: ./reports/videos]"),
             ),
         ):
     """Play an OpenAI Gym game using a random agent.

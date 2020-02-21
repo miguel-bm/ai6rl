@@ -127,22 +127,22 @@ def train_CE(
     reward_objective: float = typer.Option(
         199,
         show_default=True,
-        help = ("Mean total accumulated reward to reach."),
+        help = "Mean total accumulated reward to reach.",
         ),
     discount_factor: float = typer.Option(
         1.0,
         show_default=True,
-        help = ("Decrease reward of later steps in an episode.")
+        help = "Decrease reward of later steps in an episode.",
         ),
     keep_elite: bool = typer.Option(
         False,
         show_default=True,
-        help = ("Keep an elite number of episodes across epochs.")
+        help = "Keep an elite number of episodes across epochs.",
         ),
     min_reward: float = typer.Option(
         0,
         show_default=True,
-        help = ("Minimum reward for an episode to be in the elite batch.")
+        help = "Minimum reward for an episode to be in the elite batch.",
         ),
     batch_size: int = typer.Option(
         20,
@@ -152,12 +152,12 @@ def train_CE(
     max_epochs: int = typer.Option(
         100,
         show_default=True,
-        help = ("Maximum number of epochs of episodes to play on and train."),
+        help = "Maximum number of epochs of episodes to play on and train.",
         ),
     learning_rate: float = typer.Option(
         0.01,
         show_default=True,
-        help = ("Proportion of step in weights at each training iteration."),
+        help = "Proportion of step in weights at each training iteration.",
         ),
     hidden_size: int = typer.Option(
         128,
@@ -167,7 +167,7 @@ def train_CE(
     from_model: Path = typer.Option(
         None,
         show_default=False,
-        help = "Location of a model to load and start from if so desired."
+        help = "Location of a model to load and start from if so desired.",
         ),
     save: bool = typer.Option(
         True,
@@ -177,7 +177,7 @@ def train_CE(
     save_name: str = typer.Option(
         None,
         show_default=False,
-        help="Name for the saved model."
+        help="Name for the saved model.",
         ),
     outdir: Path = typer.Option(
         Path.cwd()/"models",
@@ -191,10 +191,10 @@ def train_CE(
         help = "Record videos of the training process.",
         ),
     monitor_outdir: Path = typer.Option(
-        Path.cwd()/"mon",
+        Path.cwd()/"reports/videos",
         show_default=True,
         help = ("Output directory for the results of the monitor " +
-                "[default: ./mon]."),
+                "[default: ./reports/videos]."),
         ),
     ):
     """Train a Cross-Entropy RL model on a OpenAI Gym environment.
