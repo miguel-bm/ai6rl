@@ -21,7 +21,7 @@ class ValueIterationAgent():
         self.state = self.env.reset()
         self.rewards = defaultdict(float)
         self.transits = defaultdict(Counter)
-        self.values = defaultdict(float)
+        self.values = defaultdict(float, value_table)
 
     def play_random(self, num_steps):
         """Play randomly in the environment, resetting when necessary, while
@@ -170,7 +170,7 @@ def draw_action_map(agent, title="", save_location ="action_map.png"):
             best_action = agent.select_action_ambiguous(state)
             char = arrows[best_action]
             ax.text(x=(j+0.5), y=side-(i+0.5),
-                    s=char, fontsize=30, color="white",
+                    s=char, fontsize=int(120/side), color="white",
                     horizontalalignment='center',
                     verticalalignment='center')
     plt.savefig(save_location)
@@ -184,7 +184,7 @@ def train_VI(
         help = "Number of random steps to explore at each iteration.",
         ),
     discount_factor: float = typer.Option(
-        1.0,
+        0.9,
         show_default=True,
         help = "Decrease reward of later steps in a trajectory.",
         ),
@@ -285,7 +285,7 @@ def train_VI(
             typer.echo("Reward objective reached!")
             break
 
-    typer.echo(f"Process stoped after {iter} interations.")
+    typer.echo(f"Process stoped after {iter+1} interations.")
 
     # Save the model as a pickle file, which will hold the dict with the VF
     if save:
