@@ -5,10 +5,17 @@ import typer
 import time
 import gym
 import torch
+import collections
 import numpy as np
-from gym import wrappers
 from pathlib import Path
-from nn_models import DenseNN
+
+import pygame
+from pygame.locals import VIDEORESIZE
+
+import gym.wrappers as gymwr
+
+from models import wrappers
+from models import dqn_model
 
 
 class ModelAgent(object):
@@ -33,15 +40,15 @@ def play_gym_model(
             show_default=True,
             help="Number of runs of the environment to simulate.",
             ),
-        frame_limit: int = typer.Option(
-            30000,
-            show_default=True,
-            help="Maximum number of steps to execute for each episode.",
-            ),
         fps: int = typer.Option(
             30,
             show_default=True,
             help="Frames per second (approximately)."
+            ),
+        zoom: float = typer.Option(
+            1.0,
+            show_default=True,
+            help="Zoom for the game display."
             ),
         verbose: bool = typer.Option(
             False,
@@ -71,9 +78,9 @@ def play_gym_model(
         ):
     """Play an OpenAI Gym game using a DQL agent previously trained.
 
-    This module creates an OpenAI Gym environment and executes random actions
-    from its action space, sampled uniformly. The game is rendered on screen,
-    and the results can be recorded. The default game is "CartPole-v1".
+    This module creates an OpenAI Gym environment and executes actions
+    as dictated from a learned policy. The game is rendered on screen,
+    and the results can be recorded. The default game is "PongNoFrameskip-v4".
     """
     typer.echo(f"Playing {game} with a trained agent.")
 
@@ -86,35 +93,46 @@ def play_gym_model(
         gym.logger.set_level(gym.logger.WARN)
 
     # Make and wrap the environment
-    env = gym.make(game)
+    env = wrappers.make_env(game)
     if monitor:
-        env = wrappers.Monitor(env, directory=outdir, force=True)
-    env.seed(0)
+        env = gymwr.Monitor(env, directory=outdir, force=True)
+    net = dqn_model.DQN(env.observation_space.shape, env.action_space.n)
+    net.load_state_dict(torch.load(model, map_location=torch.device("cpu")))
+    rendered = env.render(mode='rgb_array')
 
-    agent = ModelAgent(model)  # Hack, only works in pong, hard
-                                             # implement because gym is stupid
-    reward = 0
+    # Set size of game window
+    video_size=[rendered.shape[1], rendered.shape[0]]
+    video_size = int(video_size[0] * zoom), int(video_size[1] * zoom)
+    screen = pygame.display.set_mode(video_size)
+
     done = False
 
     for ep in range(episodes):
         typer.echo(f"Starting episode {ep}.")
-        ob = env.reset()
+        total_reward = 0
+        state = env.reset()
         state_count = 0
+        action_counter = collections.Counter()
         while True:
-            time.sleep(1/fps)
-            state_count += 1
+            start_ts = time.time()
             if not monitor: env.render()
-            action = agent.act(ob, reward, done)
-            ob, reward, done, _ = env.step(action)
+            state_v = torch.tensor(np.array([state], copy=False))
+            q_vals = net(state_v).data.numpy()[0]
+            action = np.argmax(q_vals)
+            action_counter[action] += 1
+            state, reward, done, _ = env.step(action)
+            total_reward += reward
             if verbose:
-                typer.echo(f"{action} {reward}  {ob}")
+                typer.echo(f"{action} {reward} {state}")
             if done:
                 typer.echo(f"Game reached end-state in frame {state_count}.")
                 break
-            elif state_count >= frame_limit:
-                typer.echo(f"Frame limit of {frame_limit} reached.")
-                break
-    env.close()
+            delta = 1/fps - (time.time() - start_ts)
+            if (delta > 0) and not monitor:
+                time.sleep(delta)
+            state_count += 1
+
+    env.env.close()
 
 if __name__ == "__main__":
     typer.run(play_gym_model)
