@@ -84,7 +84,7 @@ def calc_loss(batch, net, tgt_net, discount_factor, device="cpu"):
 
     states_v = torch.tensor(states).to(device)
     next_states_v = torch.tensor(next_states).to(device)
-    actions_v = torch.tensor(actions).to(device)
+    actions_v = torch.LongTensor(actions).to(device)
     rewards_v = torch.tensor(rewards).to(device)
     done_mask = torch.ByteTensor(dones).to(device)
 
