@@ -151,6 +151,16 @@ def train_DQL_ATARI(
         show_default=True,
         help = "Probability of random step after end of decay.",
         ),
+    action_cost: float = typer.Option(
+        0.0,
+        show_default=True,
+        help = "Add a negative reward to every no-null action.",
+        ),
+    from_model: str = typer.Option(
+        None,
+        show_default=False,
+        help = "Load preexisting weights to start with.",
+        ),
     cuda: bool = typer.Option(
         True,
         show_default=True,
@@ -193,6 +203,10 @@ def train_DQL_ATARI(
         ).to(device)
     tgt_net = dqn_model.DQN(env.observation_space.shape, env.action_space.n
         ).to(device)
+
+    if from_model is not None:
+        net.load_state_dict(torch.load(from_model))
+        tgt_net.load_state_dict(torch.load(from_model))
 
     # Set up buffer of previous experiences for sampling during training
     buffer = ExperienceBuffer(replay_size)
