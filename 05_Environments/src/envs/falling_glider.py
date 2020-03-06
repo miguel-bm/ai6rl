@@ -31,8 +31,8 @@ class FallingGlider(gym.Env):
         self.viewer = None
 
         # Define box for action values
-        self.max_eps = 30.   # Maximum elevator angle
-        self.min_eps = -30.  # Minimum elevator angle
+        self.max_eps = 0.5   # Maximum elevator angle (rad)
+        self.min_eps = -0.5  # Minimum elevator angle (rad)
 
         # Define box for status values
         low_obs = np.array([-10000.,  # x
@@ -54,6 +54,8 @@ class FallingGlider(gym.Env):
                                        shape=(1,), dtype=np.float32)
         self.observation_space = spaces.Box(low=low_obs, high=high_obs,
                                             dtype=np.float32)
+
+        self.last_eps = None
 
         self.seed()
 
@@ -84,10 +86,13 @@ class FallingGlider(gym.Env):
         v_e_abs = np.linalg.norm(v_e)  # Absolute velocity
         v_e_u = (v_e / v_e_abs if v_e_abs != 0.
                 else np.array([1., 0., 0.]))  # Elevator velocity versor
-        aoa = (th - np.arctan(v_u[2]/v_u[0]) if v_u[0] != 0.
-                 else th - np.pi/2)  # Angle Of Attack
-        aoa_e = (th + eps - np.arctan(v_e_u[2]/v_e_u[0]) if v_e_u[0] != 0.
-                 else th + eps - np.pi/2)  # Elevator A.O.A.
+
+        v_ang = np.arccos(v_u[0]) * (np.sign(v_u[2]) if v_u[2] != 0 else 1.)
+        aoa = th - v_ang  # Angle Of Attack
+
+        v_e_ang = np.arccos(v_e_u[0]) * (np.sign(v_e_u[2])
+            if v_e_u[2] != 0 else 1.)
+        aoa_e = th + eps - v_e_ang  # Elevator A.O.A.
 
         # Calculate forces over the glider
         Fg = np.array([0, 0, -self.m * self.g])
@@ -146,25 +151,58 @@ class FallingGlider(gym.Env):
 
         if self.viewer is None:
             from gym.envs.classic_control import rendering
-            self.viewer = rendering.Viewer(500,500)
-            self.viewer.set_bounds(-2.2,2.2,-2.2,2.2)
-            rod = rendering.make_capsule(1, .2)
-            rod.set_color(.8, .3, .3)
-            self.pole_transform = rendering.Transform()
-            rod.add_attr(self.pole_transform)
-            self.viewer.add_geom(rod)
-            axle = rendering.make_circle(.05)
-            axle.set_color(0,0,0)
-            self.viewer.add_geom(axle)
-            fname = path.join(path.dirname(__file__), "assets/clockwise.png")
-            self.img = rendering.Image(fname, 1., 1.)
-            self.imgtrans = rendering.Transform()
-            self.img.add_attr(self.imgtrans)
 
-        self.viewer.add_onetime(self.img)
-        self.pole_transform.set_rotation(self.state[0] + np.pi/2)
-        if self.last_u:
-            self.imgtrans.scale = (-self.last_u/2, np.abs(self.last_u)/2)
+            self.viewer = rendering.Viewer(1250,600)
+            self.viewer.set_bounds(-50., 200., -10.,110.)
+
+            glider_shape = [(-10, -1), (4, -1), (5, -0.5), (5, 0),
+                            (1, 1), (-2, 1), (-3, 0.5), (-4, -0.5),
+                            (-8.5, -0.5), (-10, 1), (-10.5, 1)]
+
+            self.glider = rendering.make_polygon(glider_shape, filled=True)
+            self.glider.set_color(0, 0, 0)
+            self.glidertrans = rendering.Transform()
+            self.glider.add_attr(self.glidertrans)
+
+            wing_shape = [(-3, -0.25), (0, -0.5), (1, -0.4), (2, -0.25),
+                          (1, -0.1), (0, 0)]
+
+            self.wing = rendering.make_polygon(wing_shape, filled=True)
+            self.wing.set_color(255, 0, 0)
+            self.wingtrans = rendering.Transform()
+            self.wing.add_attr(self.wingtrans)
+
+            elev_shape = [(-1.5, -0.25), (0, -0.5), (0.5, -0.4), (1, -0.25),
+                          (0.5, -0.1), (0, 0)]
+
+            self.elev = rendering.make_polygon(elev_shape, filled=True)
+            self.elev.set_color(255, 0, 255)
+            self.elevtrans = rendering.Transform()
+            self.elev.add_attr(self.elevtrans)
+
+        # Draw the sea
+        self.viewer.draw_polygon([(-50, -50), (200, -50), (200, 0), (-50, 0)],
+            color=(0, 0, 255))
+
+
+
+        self.viewer.add_onetime(self.glider)
+        self.glidertrans.translation = (self.state[0], self.state[1])
+        self.glidertrans.rotation = (self.state[2])
+
+        self.viewer.add_onetime(self.wing)
+        self.wingtrans.translation = (self.state[0], self.state[1])
+        self.wingtrans.rotation = (self.state[2])
+
+        if self.last_eps is not None:
+            x0, y0, th = self.state[0], self.state[1], self.state[2]
+            Lt = 9.6
+            x = x0 - Lt * np.cos(th)
+            y = y0 - Lt * np.sin(th)
+            self.viewer.add_onetime(self.elev)
+            self.elevtrans.translation = (x, y)
+            self.elevtrans.rotation = (th + self.last_eps)
+
 
         return self.viewer.render(return_rgb_array = mode=='rgb_array')
 

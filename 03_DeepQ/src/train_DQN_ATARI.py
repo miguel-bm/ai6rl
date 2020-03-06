@@ -45,9 +45,10 @@ class ExperienceBuffer:
 
 
 class Agent:
-    def __init__(self, env, exp_buffer):
+    def __init__(self, env, exp_buffer, action_cost=None):
         self.env = env
         self.exp_buffer = exp_buffer
+        self.action_cost = action_cost
         self._reset()
 
     def _reset(self):
@@ -104,7 +105,7 @@ def train_DQL_ATARI(
     reward_bound: float = typer.Option(
         18.0,
         show_default=True,
-        help = "Reward bjective to reach for the loop to stop.",
+        help = "Reward objective to reach for the loop to stop.",
         ),
     discount_factor: float = typer.Option(
         0.99,
