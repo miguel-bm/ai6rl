@@ -37,7 +37,7 @@ Finally, we read the 4th chapter from Deep Reinforcement Learning Hands On, by M
 Sadly, I could not attend the session personally, but it consisted on reviewing the Cross-Entropy method, analyzing in which environments it would be most applicable, and implementing them for a few environments.
 
 
-## Session 4 - 2020-02-22
+## Session 3 - 2020-02-22
 The third session focused on Tabular Learning, the Value Iteration Method, Deep Q-learning and the Deep Q-Networks.
 
 We read the Chapters 5 (Tabular Learning and the Bellman Equation) and 6 (Deep Q-Networks) and watched to following lecture by David Silver:
@@ -45,3 +45,6 @@ We read the Chapters 5 (Tabular Learning and the Bellman Equation) and 6 (Deep Q
  * [Slides](http://www0.cs.ucl.ac.uk/staff/d.silver/web/Teaching_files/FA.pdf)
 
 During the class, we reviewed the Value Iteration and Q-learning methods, and applied the first one to the Frozen Lake environment from OpenAI Gym, and the second one to the ATARI Pong game, with great success.
+
+
+## Session 4 - 2020-02-29
