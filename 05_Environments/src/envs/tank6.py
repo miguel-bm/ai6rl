@@ -11,19 +11,60 @@ from os import path
 from IPython.display import clear_output
 import matplotlib.pyplot as plt
 import typer
+from collections import namedtuple, defaultdict
+from recordclass import recordclass
 
-
-class g2048(gym.Env):
+class TankSaturdays(gym.Env):
     metadata = {
         'render.modes' : ['human', 'rgb_array'],
         'video.frames_per_second' : 30
     }
 
-    def __init__(self):
-        self.board_size = np.array([4, 4])
 
-        self.action_space = spaces.Discrete(4)
-        self.observation_space = spaces.Discrete(np.prod(self.board_size))
+    def __init__(self):
+
+        BATTLEFIELD_SIDE = 50
+        TANK_SIDE = 5
+        GAS = 1000
+        CARTRIDGE = 100
+
+        self.bf_side = BATTLEFIELD_SIDE
+        self.bf_size = np.array([BATTLEFIELD_SIDE, BATTLEFIELD_SIDE])
+        self.tank_side = TANK_SIDE
+        self.tank_size = np.array([TANK_SIDE, TANK_SIDE])
+        self.pad = self.tank_side//2
+        self.bullet_speed = 3
+        self.n_walls = 10
+        self.width_walls = 2
+        self.length_walls = (5, 16)
+        self.gas = GAS
+        self.cartridge = CARTRIDGE
+
+        self.action_space = spaces.Discrete(5)
+        self.observation_space = spaces.Discrete(np.prod(self.bf_size))
+
+        self.actions = {
+            "idle": 0,
+            "move_up": 1,
+            "move_right": 2,
+            "move_down": 3,
+            "move_left": 4,
+            "shoot_up": 5,
+            "shoot_right": 6,
+            "shoot_down": 7,
+            "shoot_left": 8,
+            }
+
+        self.dv_tuple = namedtuple('Velocities', ['dx', 'dy'])
+        self.v_actions = defaultdict(lambda x: self.dv_tuple(0, 0))
+        self.v_actions[1] = self.dv_tuple(0, -1)
+        self.v_actions[2] = self.dv_tuple(1, 0)
+        self.v_actions[3] = self.dv_tuple(0, 1)
+        self.v_actions[4] = self.dv_tuple(-1, 0)
+
+        self.bullet = recordclass('Bullet', ['x', 'y', 'dx', 'dy'])
+        self.wall = namedtuple('Wall', ['x0', 'y0', 'x1', 'y1'])
+        self.tank = recordclass('Tank', ['x', 'y', 'gas', 'bullets'])
 
         self.seed()
         self.reset()
@@ -34,154 +75,147 @@ class g2048(gym.Env):
             seed if seed is not None else np.random.seed())
         return [seed]
 
-    def step(self, move):
-        assert int(move) in range(4)
-        old_state = self.state.copy()
-        old_full = np.sum(old_state == 0)
+    def step(self, action_1, action_2=None):
+        """
+        0: UP
+        1: RIGHT
+        2: DOWN
+        3: LEFT
+        """
 
-        rotated_state = np.rot90(old_state, move)
-        new_rotated_state = []
-        for i, row in enumerate(rotated_state):
-            zero_counter = 0
-            new_row = row.copy()
-            for j, value in enumerate(row):
-                if value == 0:
-                    zero_counter += 1
-                else:
-                    for k, kvalue in enumerate(new_row[:j]):
-                        if kvalue == 0:
-                            new_row[k] = value
-                            new_row[j] = 0
-                            break
-                        elif kvalue == value:
-                            new_row[k] = new_row[k] + 1
-                            new_row[j] = 0
-                            break
-            new_rotated_state.append(new_row)
-        self.state = np.rot90(np.array(new_rotated_state), 4-move)
+        # move bullets
+        self._move_bullets()
 
-        if (self.state == old_state).all():
-            reward = 0
-        else:
-            reward, _ = self._put_piece()
+        # Check collisions between tanks and walls for given action
+        #action, action_2 = self._wall_collisions(action_1, action_2)
+        #
+        # self.black.x += self.v_actions[action_1].dx
+        # self.black.y += self.v_actions[action_1].dy
 
-        if np.sum(self.state == 0) == 0:  # No empty positions
-            done = True  # TBD: improve done logic, not fully correct ATM
-        else:
-            done = False
+        if action_1 == self.actions["idle"]:
+            pass
+        elif action_1 == self.actions["move_up"]:
+            self.black.y = max(self.pad, self.black.y-1)
+        elif action_1 == self.actions["move_right"]:
+            self.black.x = min(self.bf_side-self.pad, self.black.x+1)
+        elif action_1 == self.actions["move_down"]:
+            self.black.y = min(self.bf_side-self.pad, self.black.y+1)
+        elif action_1 == self.actions["move_left"]:
+            self.black.x = max(self.pad, self.black.x-1)
+
+        if action_1 == self.actions["shoot_up"]:
+            self.bullets.append(self.bullet(self.black.x, self.black.y-self.pad-1,
+                                            0, -self.bullet_speed))
+        elif action_1 == self.actions["shoot_right"]:
+            self.bullets.append(self.bullet(self.black.x+self.pad+1, self.black.y,
+                                            self.bullet_speed, 0))
+        elif action_1 == self.actions["shoot_down"]:
+            self.bullets.append(self.bullet(self.black.x, self.black.y+self.pad+1,
+                                            0, self.bullet_speed))
+        elif action_1 == self.actions["shoot_left"]:
+            self.bullets.append(self.bullet(self.black.x-self.pad-1, self.black.y,
+                                            -self.bullet_speed, 0))
+
+
+        # remove bullets out of battlefield
+        self._remove_bullets()
+        # check collisions (bullet - tank)
+
+        # check collisions ( bullet-bullet)
+
+        reward = 0
+        done = False
+
 
         return self._get_obs(), reward, done, {}
 
     def reset(self):
-        self.state = np.zeros(self.board_size, dtype=np.int32)
-        self._put_piece()
-        self._put_piece()
+        #self.x = self.np_random.randint(low = self.pad,
+        #                                high = self.bf_side-self.pad)
+        #self.y = self.np_random.randint(low = self.pad,
+        #                                high = self.bf_side-self.pad)
+
+        self.black = self.tank(self.pad, self.pad, self.gas, self.cartridge)
+        self.white = self.tank(self.bf_side-self.pad, self.bf_side-self.pad,
+            self.gas, self.cartridge)
+
+        self.bullets = []
+
+        self.wall_m = np.zeros(self.bf_size)
+        self.walls = []
+        for _ in range(self.n_walls):
+            dir = self.np_random.randint(2)
+            len_ = self.np_random.randint(*self.length_walls)
+
+            x0 = self.np_random.randint(low = self.tank_side,
+                                    high = self.bf_side-self.tank_side-len_)
+            x1 = x0 + len_
+
+            y0 = self.np_random.randint(low = self.tank_side,
+                                    high = self.bf_side-self.tank_side-self.width_walls)
+            y1 = y0 + self.width_walls
+
+            if dir == 1:
+                x0, x1, y0, y1 = y0, y1, x0, x1
+
+            self.walls.append(self.wall(x0, y0, x1, y1))
+            self.wall_m[x0:x1, y0:y1] = 1
+
+
+        self.state = None
         return self._get_obs()
 
     def _get_obs(self):
         return self.state
 
-    def _get_pos(self):
-        """Select a random position in the state where there is no piece."""
-        zero_pos = list(np.array(np.where(self.state == 0)).T)
-        return zero_pos[self.np_random.randint(len(zero_pos))]
+    def _move_bullets(self):
+        for i, bullet in enumerate(self.bullets):
+            self.bullets[i].x += bullet.dx
+            self.bullets[i].y += bullet.dy
 
-    def _get_piece(self):
-        """Select a piece value to be positioned."""
-        return 1 if self.np_random.uniform() < 0.9 else 2
 
-    def _put_piece(self):
-        """Put piece with random value in empty position."""
-        position = self._get_pos()
-        value = self._get_piece()
-        self.state[position[0]][position[1]] = value
-        return value, position
+    def _remove_bullets(self):
+        self.bullets = list(filter(lambda b: (b.x>=0) and (b.x<self.bf_side), \
+                                         self.bullets))
 
-    def render(self, mode='rgb_array'):
+        self.bullets = list(filter(lambda b: (b.y>=0) and (b.y<self.bf_side), \
+                                         self.bullets))
+
+    def _wall_collisions(self, tank, dx, dy):
+        tank_m = np.zeros(self.bf_size)
+        tank_m[tank.x-self.pad + dx:tank.x+self.pad+1 + dx,
+               tank.y-self.pad + dy:tank.y+self.pad+1 + dy] = 1
+
+
+        return None
+
+    def render(self, mode='console'):
 
         if mode == 'rgb_array':
 
-            tile_color_map = {
-                2: (255, 255, 0),
-                4: (255, 0, 0),
-                8: (255, 0, 255),
-                16: (0, 0, 255),
-                32: (0, 255, 255),
-                64: (0, 255, 0),
-                128: (128, 128, 0),
-                256: (128, 0, 0),
-                512: (128, 0, 128),
-                1024: (0, 0, 128),
-                2048: (0, 128, 128),
-                4096: (0, 128, 0),
-                8192: (0, 0, 0),
-            }
-
-            ts = 100
-            bs = self.board_size * ts
-
-            import pyglet
-            from gym.envs.classic_control import rendering
-            class DrawText:
-                def __init__(self, label:pyglet.text.Label):
-                    self.label=label
-                def render(self):
-                    self.label.draw()
-
-            if self.viewer is None:
-                self.viewer = rendering.Viewer(bs[1], bs[0])
-
-            self.viewer = rendering.Viewer(bs[1], bs[0])
-            self.viewer.set_bounds(0, bs[1], 0, bs[0])
-
-
-            for row in range(self.board_size[0]):
-                for col in range(self.board_size[1]):
-                    value = 2**int(self.state[row, col])
-                    if value == 1:
-                        continue
-                    rectangle_coords = [
-                        (ts*(col+0.05), ts*(row+0.05)),
-                        (ts*(col+0.95), ts*(row+0.05)),
-                        (ts*(col+0.95), ts*(row+0.95)),
-                        (ts*(col+0.05), ts*(row+0.95)),
-                        ]
-                    color = tile_color_map[value]
-
-                    text = str(value)
-                    label = pyglet.text.Label(text, font_size=25,
-                        x=ts*(col+0.5), y=ts*(row+0.5),
-                        anchor_x='center', anchor_y='center',
-                        color=(0, 0, 0, 255))
-                    label.draw()
-
-                    #self.viewer.add_geom(DrawText(label))
-
-                    self.viewer.draw_polygon(rectangle_coords, color=color)
-
-            return self.viewer.render(return_rgb_array = mode=='rgb_array')
+            pass
 
         if mode == "console":
-            typer.clear()
-            cols = self.board_size[1]
-            rows = self.board_size[0]
-            row_divider = "-----".join(["+"]*(cols+1))
-            row_padder = "     ".join(["|"]*(cols+1))
-            values = (2**self.state).tolist()
-            str_values = [[str(value).rjust(3).ljust(5) if value != 1
-                          else "     "
-                          for value in row]
-                           for row in values]
 
-            typer.echo(row_divider)
-            for row in str_values:
-                typer.echo(row_padder)
-                typer.echo("|"+"|".join(row)+"|")
-                typer.echo(row_padder)
-                typer.echo(row_divider)
+            self.render_m = np.full(self.bf_size, '·')
+            self.render_m[self.black.x-self.pad:self.black.x+self.pad+1,
+                          self.black.y-self.pad:self.black.y+self.pad+1] = '■'
+            for bullet in self.bullets:
+                if np.abs(bullet.dx) == self.bullet_speed:
+                    self.render_m[bullet.x, bullet.y] = '|'
+                elif np.abs(bullet.dy) == self.bullet_speed:
+                    self.render_m[bullet.x, bullet.y] = '—'
+
+            for wall in self.walls:
+                self.render_m[wall.x0:wall.x1, wall.y0:wall.y1] = 'X'
+
+            for row in self.render_m.tolist():
+                print(" ".join(row))
+            print(len(self.bullets))
+            typer.clear()
 
     def get_keys_to_action(self):
-        return {(37,): 0, (38,): 1, (39,): 2, (40,): 3} # Control with arrows
+        return {(37,): 1, (38,): 2, (39,): 3, (40,): 4}
 
     def close(self):
         if self.viewer:
