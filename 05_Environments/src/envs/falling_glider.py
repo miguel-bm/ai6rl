@@ -139,7 +139,7 @@ class FallingGlider(gym.Env):
                                0.,    # Starts at rest
                                0.,    # Starts at rest
                                ], dtype=np.float32)
-        self.last_u = None
+        self.last_eps = None
         return self._get_obs()
 
     def _get_obs(self):
