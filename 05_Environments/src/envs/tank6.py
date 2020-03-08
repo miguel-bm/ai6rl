@@ -23,12 +23,12 @@ class TankSaturdays(gym.Env):
 
     def __init__(self):
 
-        BATTLEFIELD_SIDE = 20
-        TANK_SIDE = 3
-        GAS = 100
+        BATTLEFIELD_SIDE = 50
+        TANK_SIDE = 5
+        GAS = 1000
         CARTRIDGE = 100
         HP = 3
-        BULLET_SPEED = 3
+        BULLET_SPEED = 5
         N_WALLS = 10
         WIDTH_WALLS = 2
 
@@ -66,6 +66,7 @@ class TankSaturdays(gym.Env):
         self.tank = recordclass('Tank', ['x', 'y', 'gas', 'cartridge', 'HP'])
         self.dv_tuple = namedtuple('Velocities', ['dx', 'dy'])
         self.shoot_tuple = namedtuple('Shoot', ['x', 'y', 'dx', 'dy'])
+        self.point = namedtuple('Point', ['x', 'y'])
 
         # Map of actions to tank movement, defaulting to no movement
         self.v_actions = defaultdict(lambda: self.dv_tuple(0, 0))
@@ -88,6 +89,7 @@ class TankSaturdays(gym.Env):
 
         self.last_action_b = None
         self.last_action_w = None
+        self.hits = list()
         self.seed()
         self.reset()
         self.viewer = None
@@ -98,6 +100,7 @@ class TankSaturdays(gym.Env):
         return [seed]
 
     def reset(self):
+        """Reset the field of play."""
 
         # Put tanks in opposite corners, with max gas, bullets and life
         self.black = self.tank(self.pad, self.pad,
@@ -108,6 +111,7 @@ class TankSaturdays(gym.Env):
         # Reset bullets in play
         self.bullets = []
         self.new_bullets = []
+        self.hits = []
 
         # Put walls in random locations in the center of the battlefield
         self.wall_m = np.zeros(self.bf_size)
@@ -134,6 +138,7 @@ class TankSaturdays(gym.Env):
         return self._get_obs()
 
     def step(self, action_b, action_w=None):
+        """Executes actions for each tank, simultaneously, and advances time."""
 
         self.last_action_b = action_b
         self.last_action_w = action_w
@@ -147,9 +152,9 @@ class TankSaturdays(gym.Env):
         action_w_s = self.s_actions[action_w]
 
         # Suppress movement when it would collide or if there is no gas left
-        if self._wall_collisions(self.black, action_b_v) or self.black.gas == 0:
+        if self._wall_collision(self.black, action_b_v) or self.black.gas == 0:
             action_b_v = self.v_actions[0]
-        if self._wall_collisions(self.white, action_w_v) or self.white.gas == 0:
+        if self._wall_collision(self.white, action_w_v) or self.white.gas == 0:
             action_w_v = self.v_actions[0]
 
         # Suppress shooting if cartridge is empty
@@ -166,8 +171,8 @@ class TankSaturdays(gym.Env):
             return self._get_obs(), 0, True, {}
 
         # Substract gas from tanks if they moved
-        self.black.gas -= (1 if action_b_v != self.v_actions[0] else 0)
-        self.white.gas -= (1 if action_w_v != self.v_actions[0] else 0)
+        if action_b_v != self.v_actions[0]: self.black.gas -= 1
+        if action_w_v != self.v_actions[0]: self.white.gas -= 1
 
         # Move bullets
         self._move_bullets()
@@ -176,20 +181,37 @@ class TankSaturdays(gym.Env):
         self._shoot_bullets(action_b_s, action_w_s)
 
         # Substract bullets from cartridge
-        self.black.cartridge -= (1 if action_b_s is not None else 0)
-        self.white.cartridge -= (1 if action_w_s is not None else 0)
+        if action_b_s is not None: self.black.cartridge -= 1
+        if action_w_s is not None: self.white.cartridge -= 1
+
+        # Check bullet-wall collisions and remove collided bullets
+        self._bullet_wall_collisions()  # Before extend, due to bullet speed
+
+        # Check bullet-tank collisions
+        self.hits = []  # This is just for rendering, no effect on gameplay
+        black_shot = self._bullet_tank_collision(self.black)
+        white_shot = self._bullet_tank_collision(self.white)
+
+        # Update HP and end game in case of death(s)
+        if black_shot: self.black.HP -= 1
+        if white_shot: self.white.HP -= 1
+        if (self.black.HP == 0) and (self.white.HP == 0):  # Draw
+            return self._get_obs(), 0, True, {}
+        elif self.black.HP == 0:  # White tank wins
+            return self._get_obs(), -1, True, {}
+        elif self.white.HP == 0:  # Black tank wins
+            return self._get_obs(), 1, True, {}
+
 
         # Add new bullets to record of bullets in flight
         self.bullets.extend(self.new_bullets)
 
-        # Check bullet-bullet collitions and remove collided bullets
+        # Check bullet-bullet collisions and remove collided bullets
         self._bullet_bullet_collisions()
 
         # Remove bullets out of battlefield
         self._remove_bullets()
-        # check collisions (bullet - tank)
 
-        # check collisions ( bullet-bullet)
 
         reward = 0
         done = False
@@ -201,6 +223,7 @@ class TankSaturdays(gym.Env):
         return self.state
 
     def _move_tanks(self, action_b_v, action_w_v):
+        """Execute all tank movements."""
         self.black.x += action_b_v.dx
         self.black.y += action_b_v.dy
         self.white.x += action_w_v.dx
@@ -211,26 +234,6 @@ class TankSaturdays(gym.Env):
         for i, bullet in enumerate(self.bullets):
             self.bullets[i].x += bullet.dx
             self.bullets[i].y += bullet.dy
-        # bullet_collision_space = np.zeros(self.bf_size)
-        # to_delete = []
-        # for i, bullet in enumerate(self.bullets):
-        #     for _ in range(self.bullet_speed):
-        #         self.bullets[i].x += np.sign(bullet.dx)
-        #         self.bullets[i].y += np.sign(bullet.dy)
-        #         if ((self.bullets[i].x<0) or (self.bullets[i].x>=self.bf_side)
-        #          or (self.bullets[i].y<0) or (self.bullets[i].y>=self.bf_side)):
-        #             to_delete.append(i)
-        #             break
-        #         if self.wall_m[self.bullets[i].x, self.bullets[i].y] == 1:
-        #             to_delete.append(i)
-        #             break
-        #         bullet_collision_space[self.bullets[i].x, self.bullets[i].y] = 1
-        # new_bullets = []
-        # for i, bullet in enumerate(self.bullets):
-        #     if i not in to_delete:
-        #         new_bullets.append(bullet)
-        # self.bullets = new_bullets
-        # return bullet_collision_space
 
     def _shoot_bullets(self, action_b_s, action_w_s):
         """Check if any tank tried to shoot and create the bullet if so."""
@@ -251,7 +254,7 @@ class TankSaturdays(gym.Env):
         self.bullets = list(filter(lambda b: (b.y>=0) and (b.y<self.bf_side),
                                          self.bullets))
 
-    def _wall_collisions(self, tank, action_v):
+    def _wall_collision(self, tank, action_v):
         """Returns True if the tank would collide with a wall or border if it
         acted on given action.
         """
@@ -277,7 +280,60 @@ class TankSaturdays(gym.Env):
 
         return collisions > 0
 
+    def _bullet_wall_collisions(self):
+        """Remove all bullets that collided in the last step."""
+        self.bullets = list(filter(self._bw_no_collision, self.bullets))
+        self.new_bullets = list(filter(
+            self._new_bw_no_collision, self.new_bullets))
+
+    def _bw_no_collision(self, bullet):
+        """Checks collitions between a given bullet and the walls."""
+        x = bullet.x
+        y = bullet.y
+        for i in range(self.bullet_speed):
+            if self._point_wall_collision(x, y):
+                return False
+            x -= np.sign(bullet.dx)
+            y -= np.sign(bullet.dy)
+        return True
+
+    def _new_bw_no_collision(self, bullet):
+        """Checks collitions between a new bullet and the walls."""
+        return not self._point_wall_collision(bullet.x, bullet.y)
+
+    def _point_wall_collision(self, x, y):
+        """See if a coordinate is part of the walls."""
+        try:
+            return self.wall_m[x, y] == 1
+        except:
+            return False
+
+    def _bullet_tank_collision(self, tank):
+        """Check if the tank was hit by any bullets."""
+        hit = False
+        for bullet in self.new_bullets.copy():
+            if self._point_in_tank(tank, bullet.x, bullet.y):
+                self.new_bullets.remove(bullet)  # Remove the bullet if it hit
+                self.hits.append((self.point(bullet.x, bullet.y)))
+                hit = True
+        for bullet in self.bullets.copy():
+            for i in range(self.bullet_speed):  # Look at trail of bullet
+                x = bullet.x - i*np.sign(bullet.dx)
+                y = bullet.y - i*np.sign(bullet.dy)
+                if self._point_in_tank(tank, x, y):
+                    self.bullets.remove(bullet)  # Remove the bullet if it hit
+                    self.hits.append((self.point(x, y)))
+                    hit = True
+                    break
+        return hit
+
+    def _point_in_tank(self, tank, x, y):
+        """Return true if a point belongs to a tank."""
+        return ((x >= tank.x-self.pad) and (x <= tank.x+self.pad) and
+                (y >= tank.y-self.pad) and (y <= tank.y+self.pad))
+
     def _bullet_bullet_collisions(self):
+        """Remove all bullets that share same position."""
         keep_bullets = set()
         for i, bullet_1 in enumerate(self.bullets):
             collision = False
@@ -326,11 +382,18 @@ class TankSaturdays(gym.Env):
             for wall in self.walls:
                 self.render_m[wall.x0:wall.x1, wall.y0:wall.y1] = 'X'
 
+            # Hits
+            for hit in self.hits:
+                self.render_m[hit.x, hit.y] = "o"
+
             # Print to console
             for row in self.render_m.tolist():
                 print(" ".join(row))
-            print(f"Gas left: {self.black.gas};   "
-                  f"Bullets left: {self.black.cartridge}")
+            print(f"Player   Gas   Bullets  HP")
+            print(f"Black   {self.black.gas:4} {self.black.cartridge:3} "
+                  f"{self.black.HP}")
+            print(f"White   {self.white.gas:4} {self.white.cartridge:3} "
+                  f"{self.white.HP:1}")
             typer.clear()
 
 
