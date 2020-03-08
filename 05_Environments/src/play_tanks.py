@@ -57,6 +57,11 @@ def play_2048_human():
         oldflags = fcntl.fcntl(fd, fcntl.F_GETFL)
         fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
 
+        if env_done:  # Natural end of a simulation, game is resetted
+            typer.echo(f"Game reached end-state in turn {turn}.")
+            running = False
+            break
+
         try:
             while 1:
                 try:
@@ -78,35 +83,33 @@ def play_2048_human():
                             action = 0
                             break
                         elif str(c) == "w":
-                            action = 5
+                            action = 8
                             break
                         elif str(c) == "a":
-                            action = 6
+                            action = 5
                             break
                         elif str(c) == "s":
-                            action = 7
+                            action = 6
                             break
                         elif str(c) == "d":
-                            action = 8
+                            action = 7
                             break
                         elif str(c) == "q":
                             typer.echo(f"Quit game.")
-                            env_done = True
+                            running = False
                             break
                 except IOError: pass
         finally:
             termios.tcsetattr(fd, termios.TCSAFLUSH, oldterm)
             fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
+        if running == False:
+            break
 
         time.sleep(0.01)
 
-        if env_done:  # Natural end of a simulation, game is resetted
-            typer.echo(f"Game reached end-state in turn {turn}.")
-            running = False
-        else:
-            prev_obs = obs
-            observation, reward, env_done, _ = env.step(action)
-            turn += 1
+        prev_obs = obs
+        observation, reward, env_done, _ = env.step(action, action_w=8)
+        turn += 1
 
 
 
