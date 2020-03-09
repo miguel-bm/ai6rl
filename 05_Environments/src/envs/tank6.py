@@ -7,9 +7,6 @@ import gym
 from gym import spaces
 from gym.utils import seeding
 import numpy as np
-from os import path
-from IPython.display import clear_output
-import matplotlib.pyplot as plt
 import typer
 from collections import namedtuple, defaultdict
 from recordclass import recordclass
@@ -20,7 +17,6 @@ class TankSaturdays(gym.Env):
         'video.frames_per_second' : 30
     }
 
-
     def __init__(self):
 
         BATTLEFIELD_SIDE = 50
@@ -29,15 +25,20 @@ class TankSaturdays(gym.Env):
         CARTRIDGE = 100
         HP = 3
         BULLET_SPEED = 5
+        IDLE_COST = 1
+        MOVE_COST = 2
         N_WALLS = 10
         WIDTH_WALLS = 2
 
+        # Game settings
         self.bf_side = BATTLEFIELD_SIDE
         self.tank_side = TANK_SIDE
         self.gas = GAS
         self.cartridge = CARTRIDGE
         self.HP = HP
         self.bullet_speed = BULLET_SPEED
+        self.idle_cost = IDLE_COST
+        self.move_cost = MOVE_COST
         self.n_walls = N_WALLS
         self.width_walls = WIDTH_WALLS
         self.length_walls = (self.tank_side, self.bf_side//2)
@@ -46,10 +47,10 @@ class TankSaturdays(gym.Env):
         self.tank_size = np.array([self.tank_side, self.tank_side])
         self.pad = self.tank_side//2
 
-        self.action_space = spaces.Discrete(5)
+        self.action_space = spaces.Discrete(9)
         self.observation_space = spaces.Discrete(np.prod(self.bf_size))
 
-        self.actions = {
+        self.action_map = {  # Not actually used, just for reference
             "idle": 0,
             "move_up": 1,
             "move_right": 2,
@@ -61,6 +62,7 @@ class TankSaturdays(gym.Env):
             "shoot_left": 8,
             }
 
+        # Named tuples and lists used for recording game object properties
         self.bullet = recordclass('Bullet', ['x', 'y', 'dx', 'dy'])
         self.wall = namedtuple('Wall', ['x0', 'y0', 'x1', 'y1'])
         self.tank = recordclass('Tank', ['x', 'y', 'gas', 'cartridge', 'HP'])
@@ -89,10 +91,10 @@ class TankSaturdays(gym.Env):
 
         self.last_action_b = None
         self.last_action_w = None
+        self.viewer = None
         self.hits = list()
         self.seed()
         self.reset()
-        self.viewer = None
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(
@@ -111,7 +113,7 @@ class TankSaturdays(gym.Env):
         # Reset bullets in play
         self.bullets = []
         self.new_bullets = []
-        self.hits = []
+        self.hits = []  # Merely for rendering purposes
 
         # Put walls in random locations in the center of the battlefield
         self.wall_m = np.zeros(self.bf_size)
@@ -119,20 +121,17 @@ class TankSaturdays(gym.Env):
         for _ in range(self.n_walls):
             dir = self.np_random.randint(2)
             length = self.np_random.randint(*self.length_walls)
-
             x0 = self.np_random.randint(low = self.tank_side,
-                                    high = self.bf_side-self.tank_side-length)
-            x1 = x0 + length
-
+                high = self.bf_side-self.tank_side-length)
             y0 = self.np_random.randint(low = self.tank_side,
-                    high = self.bf_side-self.tank_side-self.width_walls)
+                high = self.bf_side-self.tank_side-self.width_walls)
+            x1 = x0 + length
             y1 = y0 + self.width_walls
-
             if dir == 1:  # If vertical wall, transpose dimensions
                 x0, x1, y0, y1 = y0, y1, x0, x1
 
             self.walls.append(self.wall(x0, y0, x1, y1))
-            self.wall_m[x0:x1, y0:y1] = 1
+            self.wall_m[x0:x1, y0:y1] = 1  # Matrix with ones in wall positions
 
         self.state = None
         return self._get_obs()
@@ -151,16 +150,22 @@ class TankSaturdays(gym.Env):
         action_b_s = self.s_actions[action_b]
         action_w_s = self.s_actions[action_w]
 
+        # Substract gas from tanks from basic functioning
+        self.black.gas -= self.idle_cost
+        self.white.gas -= self.idle_cost
+
         # Suppress movement when it would collide or if there is no gas left
-        if self._wall_collision(self.black, action_b_v) or self.black.gas == 0:
+        if self._wall_collision(self.black, action_b_v
+            ) or self.black.gas < self.move_cost:
             action_b_v = self.v_actions[0]
-        if self._wall_collision(self.white, action_w_v) or self.white.gas == 0:
+        if self._wall_collision(self.white, action_w_v
+            ) or self.white.gas < self.move_cost:
             action_w_v = self.v_actions[0]
 
         # Suppress shooting if cartridge is empty
-        if self.black.cartridge == 0:
+        if self.black.cartridge <= 0:
             action_b_s = None
-        if self.white.cartridge == 0:
+        if self.white.cartridge <= 0:
             action_w_s = None
 
         # Move tanks
@@ -171,8 +176,8 @@ class TankSaturdays(gym.Env):
             return self._get_obs(), 0, True, {}
 
         # Substract gas from tanks if they moved
-        if action_b_v != self.v_actions[0]: self.black.gas -= 1
-        if action_w_v != self.v_actions[0]: self.white.gas -= 1
+        if action_b_v != self.v_actions[0]: self.black.gas -= self.move_cost
+        if action_w_v != self.v_actions[0]: self.white.gas -= self.move_cost
 
         # Move bullets
         self._move_bullets()
@@ -202,7 +207,6 @@ class TankSaturdays(gym.Env):
         elif self.white.HP == 0:  # Black tank wins
             return self._get_obs(), 1, True, {}
 
-
         # Add new bullets to record of bullets in flight
         self.bullets.extend(self.new_bullets)
 
@@ -212,12 +216,16 @@ class TankSaturdays(gym.Env):
         # Remove bullets out of battlefield
         self._remove_bullets()
 
+        # If tank runs out of gas, they lose
+        if (self.black.gas <= 0) and (self.white.gas <= 0):
+            return self._get_obs(), 0, True, {}
+        elif self.black.gas == 0:  # White tank wins
+            return self._get_obs(), -1, True, {}
+        elif self.white.gas == 0:  # Black tank wins
+            return self._get_obs(), 1, True, {}
 
-        reward = 0
-        done = False
-
-
-        return self._get_obs(), reward, done, {}
+        # By default, no rewards are given and game continues
+        return self._get_obs(), 0, False, {}
 
     def _get_obs(self):
         return self.state
@@ -261,7 +269,7 @@ class TankSaturdays(gym.Env):
         dx = action_v.dx
         dy = action_v.dy
 
-        if (dx==0) and (dy==0):  # No need to check this case
+        if (dx==0) and (dy==0):  # No need to check this case, can't collide
             return False
 
         # Make a matrix with ones in positions occupied by the tank after move
@@ -292,8 +300,8 @@ class TankSaturdays(gym.Env):
         y = bullet.y
         for i in range(self.bullet_speed):
             if self._point_wall_collision(x, y):
-                return False
-            x -= np.sign(bullet.dx)
+                return False  # This means it did collide
+            x -= np.sign(bullet.dx)  # Retract bullet steps this turn
             y -= np.sign(bullet.dy)
         return True
 
@@ -306,7 +314,7 @@ class TankSaturdays(gym.Env):
         try:
             return self.wall_m[x, y] == 1
         except:
-            return False
+            return False  # In case inputed point is out of array bounds
 
     def _bullet_tank_collision(self, tank):
         """Check if the tank was hit by any bullets."""
@@ -324,7 +332,7 @@ class TankSaturdays(gym.Env):
                     self.bullets.remove(bullet)  # Remove the bullet if it hit
                     self.hits.append((self.point(x, y)))
                     hit = True
-                    break
+                    break  # Can't return cause other bullets might hit too
         return hit
 
     def _point_in_tank(self, tank, x, y):
@@ -357,11 +365,9 @@ class TankSaturdays(gym.Env):
     def render(self, mode='console'):
 
         if mode == 'rgb_array':
-
             pass
 
         if mode == "console":
-
             # Background
             self.render_m = np.full(self.bf_size, '·')
 
@@ -395,10 +401,6 @@ class TankSaturdays(gym.Env):
             print(f"White   {self.white.gas:4} {self.white.cartridge:3} "
                   f"{self.white.HP:1}")
             typer.clear()
-
-
-    def get_keys_to_action(self):
-        return {(37,): 1, (38,): 2, (39,): 3, (40,): 4}
 
     def close(self):
         if self.viewer:
