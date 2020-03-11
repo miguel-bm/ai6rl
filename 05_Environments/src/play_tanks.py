@@ -26,16 +26,6 @@ def play_2048_human():
     rendered=env.render(mode='console')
     obs = env.reset()
 
-    # Get the key to actions mapping for the environment
-    if hasattr(env, 'get_keys_to_action'):
-        keys_to_action = env.get_keys_to_action()
-    elif hasattr(env.unwrapped, 'get_keys_to_action'):
-        keys_to_action = env.unwrapped.get_keys_to_action()
-    else:
-        assert False, env.spec.id + " does not have explicit key to action " +\
-                          "mapping, please specify one manually"
-    relevant_keys = set(sum(map(list, keys_to_action.keys()),[]))
-
     pressed_keys = []
     transpose = True
     running = True
@@ -59,6 +49,12 @@ def play_2048_human():
 
         if env_done:  # Natural end of a simulation, game is resetted
             typer.echo(f"Game reached end-state in turn {turn}.")
+            if reward == 0:
+                typer.echo("It was a draw")
+            elif reward == 1:
+                typer.echo("Black tank won")
+            elif reward == -1:
+                typer.echo("White tank won")
             running = False
             break
 
