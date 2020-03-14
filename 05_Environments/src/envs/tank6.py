@@ -454,8 +454,8 @@ class TankSaturdays(gym.Env):
             for row in self.render_m.tolist():
                 print(" ".join(row))
             print(f"Player   Gas   Bullets  HP")
-            print(f"Black   {self.black.gas:4} {self.black.cartridge:3} "
-                  f"{self.black.HP}")
+            print(f"Black   {self.black.gas:4}        {self.black.cartridge:3} "
+                  f"     {self.black.HP}")
             print(f"White   {self.white.gas:4} {self.white.cartridge:3} "
                   f"{self.white.HP:1}")
             typer.clear()
