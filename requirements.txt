@@ -1,5 +1,5 @@
 torch==1.4.0
-numpy==1.17.2
+numpy==1.22.0
 gym==0.15.6
 recordclass==0.13.2
 pygame==1.9.6
